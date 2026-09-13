@@ -19,38 +19,46 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  /**
-   * ตรวจสอบ session จาก localStorage ตอนเริ่มต้น
-   * ไม่ใช้ Supabase Auth เพราะ login ผ่านตาราง students/admins โดยตรง
-   */
   useEffect(() => {
-    function initAuth() {
+    let mounted = true;
+
+    async function initAuth() {
       try {
-        // ตรวจสอบ admin session
+        // 1. Check Admin Session (Legacy LocalStorage)
         const adminAuth = localStorage.getItem('dept_admin_auth');
         if (adminAuth) {
           const parsed = JSON.parse(adminAuth);
           if (parsed.authenticated && parsed.admin) {
-            setUser({ id: parsed.admin.id, role: 'ADMIN' });
-            setProfile({
-              ...parsed.admin,
-              role: 'ADMIN',
-            });
-            setLoading(false);
+            if (mounted) {
+              setUser({ id: parsed.admin.id, role: 'ADMIN' });
+              setProfile({
+                ...parsed.admin,
+                role: 'ADMIN',
+              });
+              setLoading(false);
+            }
             return;
           }
         }
 
-        // ตรวจสอบ student session
-        const studentAuth = localStorage.getItem('dept_student_auth');
-        if (studentAuth) {
-          const parsed = JSON.parse(studentAuth);
-          if (parsed.authenticated && parsed.student) {
-            setUser({ id: parsed.student.id, role: 'STUDENT' });
-            setProfile({
-              ...parsed.student,
-              role: 'STUDENT',
-            });
+        // 2. Check Student Session (Supabase Auth)
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (session && session.user) {
+          // Fetch student profile using auth_id
+          const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .select('*')
+            .eq('auth_id', session.user.id)
+            .single();
+
+          if (!studentError && studentData && mounted) {
+            const studentProfile = { ...studentData, role: 'STUDENT' };
+            const studentUser = { id: session.user.id, role: 'STUDENT' };
+            
+            setUser(studentUser);
+            setProfile(studentProfile);
+            localStorage.setItem('dept_student', JSON.stringify(studentData));
             setLoading(false);
             return;
           }
@@ -59,57 +67,93 @@ export function AuthProvider({ children }) {
         console.error('Init auth error:', e);
       }
 
-      // ไม่มี session
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
 
     initAuth();
-  }, []);
+
+    // Listen to Supabase Auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('auth_id', session.user.id)
+          .single();
+          
+        if (studentData && mounted) {
+          setUser({ id: session.user.id, role: 'STUDENT' });
+          setProfile({ ...studentData, role: 'STUDENT' });
+          localStorage.setItem('dept_student', JSON.stringify(studentData));
+        }
+      } else if (event === 'SIGNED_OUT') {
+        if (mounted && profile?.role === 'STUDENT') {
+          setUser(null);
+          setProfile(null);
+          localStorage.removeItem('dept_student');
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [profile?.role]);
 
   /**
-   * Sign In: รองรับทั้ง Student (ค้นหาจาก student_id) และ Admin (ค้นหาจาก username)
-   * @param identifier - student_id (10 หลัก) หรือ admin username
-   * @param password - password (ใช้ verify เฉพาะ Admin ในอนาคต)
+   * Sign In: รองรับทั้ง Student (Email/Password) และ Admin (Username)
+   * @param identifier - email หรือ admin username
+   * @param password - password 
    */
   const signIn = async (identifier, password) => {
     setLoading(true);
 
     const trimmed = String(identifier).trim();
-    const isStudent = /^\d{10}$/.test(trimmed);
+    // ถ้ามี @ ถือว่าเป็น Email (Student)
+    const isStudent = trimmed.includes('@');
 
     try {
       if (isStudent) {
-        // === Student Login: ค้นหาจากตาราง students ===
-        const { data, error } = await supabase
-          .from('students')
-          .select('*')
-          .eq('student_id', trimmed)
-          .single();
+        // === Student Login: Supabase Auth ===
+        if (!password) {
+          throw new Error('กรุณากรอกรหัสผ่าน');
+        }
+        
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: trimmed,
+          password: password,
+        });
 
-        if (error || !data) {
-          throw new Error('ไม่พบรหัสนักศึกษานี้ในระบบ กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง');
+        if (authError || !authData.user) {
+          throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
         }
 
-        const studentProfile = { ...data, role: 'STUDENT' };
-        const studentUser = { id: data.id, role: 'STUDENT' };
+        // Fetch student data by auth_id
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('auth_id', authData.user.id)
+          .single();
+
+        if (studentError || !studentData) {
+          // หากไม่มีข้อมูลนักศึกษาที่ผูกกับ auth_id นี้ ให้ sign out ทันที
+          await supabase.auth.signOut();
+          throw new Error('ไม่พบข้อมูลนักศึกษาที่ผูกกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ');
+        }
+
+        const studentProfile = { ...studentData, role: 'STUDENT' };
+        const studentUser = { id: authData.user.id, role: 'STUDENT' };
 
         setUser(studentUser);
         setProfile(studentProfile);
-
-        // เก็บ session
-        localStorage.setItem('dept_student_auth', JSON.stringify({
-          authenticated: true,
-          role: 'STUDENT',
-          student: data,
-          loginAt: new Date().toISOString(),
-        }));
-        localStorage.setItem('dept_student', JSON.stringify(data));
+        localStorage.setItem('dept_student', JSON.stringify(studentData));
 
         setLoading(false);
         return { user: studentUser, profile: studentProfile };
 
       } else {
-        // === Admin Login: ค้นหาจากตาราง admins ===
+        // === Admin Login: ค้นหาจากตาราง admins แบบเดิม ===
         const { data, error } = await supabase
           .from('admins')
           .select('id, username, name, role')
@@ -151,6 +195,9 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     setLoading(true);
     try {
+      if (profile?.role === 'STUDENT') {
+        await supabase.auth.signOut();
+      }
       localStorage.removeItem('dept_admin_auth');
       localStorage.removeItem('dept_student_auth');
       localStorage.removeItem('dept_student');
