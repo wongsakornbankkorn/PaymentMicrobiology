@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
-import { uploadSlipToSupabase } from '../../../utils/imageCompression';
+
 
 import PromptPayCard from '../../../components/student/PromptPayCard';
 import SlipUploadForm from '../../../components/student/SlipUploadForm';
@@ -116,22 +116,51 @@ export default function StudentDashboardPage() {
   const balanceRemaining = Math.max(0, totalObligation - totalPaid);
 
   // Handle slip submission
-  const handleSubmitSlip = async ({
-    file,
-    campaignId,
-    amountPaid,
-    transferDate,
-  }) => {
+  const handleSubmitSlip = async (formData) => {
     if (!profile?.id) {
       showToast('กรุณาเข้าสู่ระบบก่อนทำรายการ', 'error');
       return;
     }
 
     try {
-      // 1. Upload compressed slip directly to Supabase Storage bucket 'slips'
-      const uploadResult = await uploadSlipToSupabase(file, profile.student_id);
+      const file = formData.get('slip');
+      const campaignId = formData.get('campaign_id');
+      const amountPaid = formData.get('amount');
+      const transferDate = formData.get('transfer_timestamp');
+      const originBank = formData.get('origin_bank');
+      const note = formData.get('note');
 
-      // 2. Insert record into Supabase 'transactions' table โดยตรง
+      if (!file) {
+        showToast('ไม่พบไฟล์สลิป', 'error');
+        return;
+      }
+
+      // 1. Upload raw file directly to Supabase Storage bucket 'slips'
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.student_id || 'slip'}-${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('slips')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'image/jpeg'
+        });
+
+      if (uploadErr) {
+        console.error('Storage Upload Error:', uploadErr);
+        showToast('อัปโหลดรูปไม่สำเร็จ: ' + uploadErr.message, 'error');
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('slips')
+        .getPublicUrl(filePath);
+
+      const realSlipUrl = publicUrlData.publicUrl;
+
+      // 2. Insert record into Supabase 'transactions' table
       const { error: txErr } = await supabase
         .from('transactions')
         .insert([{
@@ -139,12 +168,13 @@ export default function StudentDashboardPage() {
           student_id: profile.id,
           campaign_id: campaignId,
           amount: parseFloat(amountPaid),
-          slip_image_url: uploadResult.publicUrl,
+          slip_image_url: realSlipUrl,
           transfer_timestamp: transferDate || new Date().toISOString(),
-          origin_bank: 'SCB',
+          origin_bank: originBank || 'SCB',
           slip_hash: `sha256-${Date.now()}`,
           ocr_status: 'MATCHED',
           verification_status: 'PENDING',
+          note: note || null,
         }]);
 
       if (txErr) throw txErr;
@@ -154,7 +184,7 @@ export default function StudentDashboardPage() {
       setActiveTab('history');
     } catch (err) {
       console.error('Submit slip failed:', err);
-      throw err;
+      showToast(err.message || 'เกิดข้อผิดพลาดในการส่งสลิป', 'error');
     }
   };
 
