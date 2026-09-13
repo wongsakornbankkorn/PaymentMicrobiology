@@ -3,6 +3,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, CheckCircle2, AlertCircle, FileText, Clock, ShieldCheck, Image as ImageIcon } from 'lucide-react';
 
+import { supabase } from '../../lib/supabase';
+
 const BANKS = [
   { code: 'SCB', name: 'ธนาคารไทยพาณิชย์ (SCB)' },
   { code: 'KBANK', name: 'ธนาคารกสิกรไทย (KBank)' },
@@ -93,7 +95,6 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    alert('ปุ่ม Submit ใน Form ทำงานแล้ว (SlipUploadForm.jsx)');
     if (!file) {
       setErrorMsg('กรุณาแนบรูปสลิปการโอนเงินก่อนส่งแบบฟอร์ม');
       return;
@@ -103,6 +104,32 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
     setErrorMsg('');
 
     try {
+      alert('กำลังเริ่มอัปโหลดไฟล์ขึ้น Storage...');
+      
+      const fileExt = file.name.split('.').pop();
+      const filePath = `slip-${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('slips')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'image/jpeg'
+        });
+
+      if (uploadError) {
+        console.error('Storage error:', uploadError);
+        alert('Upload slip failed: ' + uploadError.message);
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('slips')
+        .getPublicUrl(filePath);
+        
+      const realSlipUrl = publicUrlData.publicUrl;
+      alert('อัปโหลดไฟล์ขึ้น Storage สำเร็จ URL คือ: ' + realSlipUrl);
+
       const formData = new FormData();
       formData.append('slip', file);
       formData.append('campaign_id', campaignId);
@@ -110,9 +137,12 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
       formData.append('transfer_timestamp', transferTime);
       formData.append('origin_bank', bank);
       formData.append('note', note);
-      formData.append('preview_url', previewUrl);
+      
+      // ส่ง URL ของจริงกลับไปให้พาเรนต์คอมโพเนนต์ แทนที่จะส่ง blob URL
+      formData.append('preview_url', realSlipUrl);
 
       await onSubmitSlip(formData);
+
       handleClearFile();
       setNote('');
     } catch (err) {
