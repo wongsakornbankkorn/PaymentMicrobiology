@@ -83,13 +83,10 @@ export default function RegisterPage() {
         .from('students')
         .insert([newStudent]);
 
-      // Note: If student_id already exists without auth_id, this insert might fail 
-      // if student_id is marked as UNIQUE. To handle updates for existing records, 
-      // an upsert or update logic would be needed. But for this requirement, insert is fine.
       if (dbError) {
         console.error('Insert error:', dbError);
-        // Fallback: Try to update existing record if insert fails due to unique constraint
-        if (dbError.code === '23505') { // Unique violation
+        // Fallback for UPSERT if student_id already exists
+        if (dbError.code === '23505') { 
           const { error: updateError } = await supabase
             .from('students')
             .update({ auth_id: authData.user.id, email: email.trim(), name_th: name.trim() })
@@ -105,7 +102,7 @@ export default function RegisterPage() {
 
       setSuccessMsg('สมัครสมาชิกสำเร็จ! กำลังพากลับไปยังหน้าล็อกอิน...');
       setTimeout(() => {
-        router.push('/login');
+        router.push('/');
       }, 2000);
 
     } catch (err) {
@@ -116,18 +113,26 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden bg-slate-950">
-      {/* Atmospheric Radial Gradients */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-cyan-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
+    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden bg-[#f5f5f7]">
+      {/* Background Image: Science & Technology Building */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
+        style={{
+          backgroundImage: "url('/images/login-bg.jpg')",
+          filter: 'brightness(0.92)'
+        }}
+      />
 
-      {/* Interactive Registration Card */}
-      <div className="relative z-10 w-full max-w-lg bg-slate-900/85 backdrop-blur-2xl border border-slate-700/60 rounded-[32px] shadow-[0_24px_60px_-15px_rgba(0,0,0,0.8)] p-6 sm:p-10 space-y-6 text-white animate-in fade-in zoom-in-95 duration-500">
+      {/* Atmospheric Frosted Tint Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-slate-900/40 to-black/60 backdrop-blur-[2px]" />
+
+      {/* Main Glassmorphic Registration Card */}
+      <div className="relative z-10 w-full max-w-lg bg-white/90 backdrop-blur-2xl border border-white/60 rounded-[32px] shadow-[0_24px_60px_-15px_rgba(0,0,0,0.45)] p-6 sm:p-10 space-y-6 text-apple-ink animate-in fade-in zoom-in-95 duration-500">
         
         {/* Department Branding */}
         <div className="text-center space-y-3">
           <div className="flex justify-center">
-            <div className="w-16 h-16 p-2 rounded-2xl bg-white/10 backdrop-blur-md shadow-md border border-white/20 flex items-center justify-center">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 p-2 rounded-2xl bg-white/90 shadow-md border border-apple-hairline flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/psu-emblem.png"
@@ -139,31 +144,31 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold tracking-wide mb-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-apple-primary/10 text-apple-primary text-xs font-semibold tracking-wide mb-1">
               <Sparkles className="w-3.5 h-3.5" />
               <span>สร้างบัญชีนักศึกษาใหม่</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-display">
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-apple-ink tracking-tight">
               ลงทะเบียนระบบเช็คการชำระเงิน
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 font-medium">
-              สาขาวิชาจุลชีววิทยา คณะวิทยาศาสตร์ ม.อ.
+            <p className="text-sm sm:text-base font-semibold text-apple-primary font-display mt-0.5">
+              สาขาวิชาจุลชีววิทยา (Microbiology)
             </p>
           </div>
         </div>
 
         {/* Alerts */}
         {errorMsg && (
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 animate-in slide-in-from-top-2">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <p className="text-sm font-medium leading-relaxed">{errorMsg}</p>
+          <div className="p-3.5 rounded-2xl bg-apple-rose/10 border border-apple-rose/25 text-apple-rose text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in duration-200">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="leading-snug">{errorMsg}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 animate-in slide-in-from-top-2">
-            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
-            <p className="text-sm font-medium leading-relaxed">{successMsg}</p>
+          <div className="p-3.5 rounded-2xl bg-apple-emerald/10 border border-apple-emerald/25 text-apple-emerald text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in duration-200">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="leading-snug">{successMsg}</span>
           </div>
         )}
 
@@ -173,35 +178,30 @@ export default function RegisterPage() {
             
             {/* Student ID */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
+              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
                 รหัสนักศึกษา (10 หลัก)
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-400 transition-colors">
-                  <User className="w-5 h-5" />
-                </div>
+              <div className="relative">
                 <input
                   type="text"
                   name="studentId"
                   value={formData.studentId}
                   onChange={handleChange}
-                  placeholder="671021xxxx"
+                  placeholder="เช่น 6710210000"
                   disabled={isSubmitting}
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all font-mono"
+                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm font-mono text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
                   maxLength={10}
                 />
+                <User className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
             {/* Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
+              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
                 ชื่อ-นามสกุล (ภาษาไทย)
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-400 transition-colors">
-                  <User className="w-5 h-5" />
-                </div>
+              <div className="relative">
                 <input
                   type="text"
                   name="name"
@@ -209,50 +209,51 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="เช่น สมชาย ใจดี"
                   disabled={isSubmitting}
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
                 />
+                <User className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
             {/* Email */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
+              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
                 อีเมล (Email)
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-400 transition-colors">
-                  <Mail className="w-5 h-5" />
-                </div>
+              <div className="relative">
                 <input
                   type="email"
                   name="email"
+                  id="email"
+                  autoComplete="off"
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="student@sci.psu.ac.th"
                   disabled={isSubmitting}
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
                 />
+                <Mail className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">
+              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
                 รหัสผ่าน (6 ตัวอักษรขึ้นไป)
               </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-400 transition-colors">
-                  <Lock className="w-5 h-5" />
-                </div>
+              <div className="relative">
                 <input
                   type="password"
                   name="password"
+                  id="password"
+                  autoComplete="new-password"
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
                   disabled={isSubmitting}
-                  className="w-full bg-slate-950/50 border border-slate-700/60 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
                 />
+                <Lock className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
@@ -261,11 +262,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full py-3.5 mt-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              isSubmitting
-                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transform hover:-translate-y-0.5'
-            }`}
+            className="btn-pill-primary w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all bg-apple-ink text-white hover:bg-black disabled:opacity-50 mt-2"
           >
             {isSubmitting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -278,14 +275,14 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        <div className="pt-4 border-t border-slate-800 text-center space-y-3">
-          <p className="text-sm text-slate-400">
+        <div className="pt-4 border-t border-apple-hairline/80 text-center space-y-3">
+          <p className="text-xs text-apple-ink-subtle">
             มีบัญชีผู้ใช้งานอยู่แล้วใช่หรือไม่?{' '}
-            <Link href="/login" className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">
-              เข้าสู่ระบบ
+            <Link href="/" className="text-apple-primary font-semibold hover:underline transition-colors">
+              เข้าสู่ระบบที่นี่
             </Link>
           </p>
-          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>ปลอดภัยด้วย Supabase Authentication</span>
           </div>

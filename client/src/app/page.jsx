@@ -96,17 +96,19 @@ export default function App() {
     loadData();
   }, []);
 
-  // Unified Login Handler
-  const handleLoginSuccess = async (targetRole, credentials) => {
-    if (targetRole === 'STUDENT') {
-      const result = await api.studentLogin(credentials.student_id);
+  const handleLoginSuccess = async (credentials) => {
+    const { identifier, password } = credentials;
+    const isStudent = identifier.includes('@');
+
+    if (isStudent) {
+      const result = await api.studentLogin(identifier, password);
       const studentUser = result.student;
       setAuth({ role: 'STUDENT', user: studentUser });
       setRole('STUDENT');
       showToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${studentUser.name_th}!`, 'success');
       await loadData();
     } else {
-      const result = await api.adminLogin(credentials.password, credentials.username);
+      const result = await api.adminLogin(password, identifier);
       const adminUser = result.admin;
       setAuth({ role: 'ADMIN', user: adminUser });
       setRole('ADMIN');

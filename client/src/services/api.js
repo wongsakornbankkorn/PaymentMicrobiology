@@ -46,23 +46,35 @@ export const api = {
   // ==========================================================================
 
   /**
-   * Student Login: ค้นหา student_id จากตาราง students
-   * ไม่ต้องรหัสผ่าน เพราะระบบเดิมใช้รหัสนักศึกษาเป็น identifier อย่างเดียว
+   * Student Login: ใช้ Supabase Auth (อีเมล + รหัสผ่าน)
    */
-  async studentLogin(studentId) {
-    const cleanId = String(studentId).trim();
+  async studentLogin(email, password) {
+    const cleanEmail = String(email).trim();
 
+    // 1. Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: password,
+    });
+
+    if (authError || !authData.user) {
+      throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    }
+
+    // 2. Fetch student data by auth_id
     const { data, error } = await supabase
       .from('students')
       .select('*')
-      .eq('student_id', cleanId)
+      .eq('auth_id', authData.user.id)
       .single();
 
     if (error || !data) {
-      throw new Error('ไม่พบรหัสนักศึกษานี้ในระบบ กรุณาตรวจสอบรหัสนักศึกษาอีกครั้ง');
+      // หากเข้าสู่ระบบได้แต่ไม่มีข้อมูลนักศึกษา
+      await supabase.auth.signOut();
+      throw new Error('ไม่พบข้อมูลนักศึกษาที่ผูกกับบัญชีนี้ กรุณาติดต่อผู้ดูแลระบบ');
     }
 
-    // เก็บ session ลง localStorage
+    // 3. เก็บ session ลง localStorage
     setStorage('dept_student_auth', {
       authenticated: true,
       role: 'STUDENT',
@@ -80,6 +92,7 @@ export const api = {
   },
 
   async studentLogout() {
+    await supabase.auth.signOut();
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dept_student_auth');
       localStorage.removeItem('dept_student');

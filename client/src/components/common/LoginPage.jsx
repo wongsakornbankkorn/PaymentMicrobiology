@@ -1,21 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, ArrowRight, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react';
+import Link from 'next/link';
+import { User, Lock, ArrowRight, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage({ onLoginSuccess }) {
-  const [roleTab, setRoleTab] = useState('STUDENT'); // 'STUDENT' | 'ADMIN'
-  const [studentId, setStudentId] = useState('');
-  const [adminUsername, setAdminUsername] = useState('admin');
-  const [adminPassword, setAdminPassword] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Handle Student Login
-  const handleStudentSubmit = async (e) => {
+  // Handle Unified Login
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!studentId || !studentId.trim()) {
-      setErrorMsg('กรุณากรอกรหัสนักศึกษา 10 หลัก');
+    if (!identifier || !password) {
+      setErrorMsg('กรุณากรอกข้อมูลให้ครบถ้วน');
       return;
     }
 
@@ -24,35 +23,13 @@ export default function LoginPage({ onLoginSuccess }) {
 
     try {
       if (onLoginSuccess) {
-        await onLoginSuccess('STUDENT', { student_id: studentId.trim() });
-      }
-    } catch (err) {
-      setErrorMsg(err.message || 'ไม่พบรหัสนักศึกษานี้ในระบบ กรุณาตรวจสอบอีกครั้ง');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Admin Login
-  const handleAdminSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (!adminPassword) {
-      setErrorMsg('กรุณากรอกรหัสผ่านเหรัญญิก');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
-    try {
-      if (onLoginSuccess) {
-        await onLoginSuccess('ADMIN', {
-          username: adminUsername.trim(),
-          password: adminPassword
+        await onLoginSuccess({ 
+          identifier: identifier.trim(), 
+          password: password 
         });
       }
     } catch (err) {
-      setErrorMsg(err.message || 'รหัสผ่านเหรัญญิกไม่ถูกต้อง');
+      setErrorMsg(err.message || 'อีเมล/ชื่อผู้ใช้ หรือ รหัสผ่าน ไม่ถูกต้อง');
     } finally {
       setLoading(false);
     }
@@ -105,40 +82,6 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         </div>
 
-        {/* Role Segmented Controller (Apple Pill Switcher) */}
-        <div className="bg-[#f0f0f4] p-1 rounded-2xl flex items-center border border-apple-hairline">
-          <button
-            type="button"
-            onClick={() => {
-              setRoleTab('STUDENT');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-              roleTab === 'STUDENT'
-                ? 'bg-white text-apple-ink shadow-sm ring-1 ring-black/5'
-                : 'text-apple-ink-subtle hover:text-apple-ink'
-            }`}
-          >
-            <User className="w-4 h-4 text-apple-primary" />
-            <span>นักศึกษา (Student)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRoleTab('ADMIN');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-              roleTab === 'ADMIN'
-                ? 'bg-white text-apple-ink shadow-sm ring-1 ring-black/5'
-                : 'text-apple-ink-subtle hover:text-apple-ink'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-apple-emerald" />
-            <span>เหรัญญิก (Admin)</span>
-          </button>
-        </div>
-
         {/* Error Alert Box */}
         {errorMsg && (
           <div className="p-3.5 rounded-2xl bg-apple-rose/10 border border-apple-rose/25 text-apple-rose text-xs sm:text-sm flex items-start gap-2.5 animate-in fade-in duration-200">
@@ -147,84 +90,65 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* ==================== STUDENT LOGIN FORM ==================== */}
-        {roleTab === 'STUDENT' && (
-          <form onSubmit={handleStudentSubmit} className="space-y-4 animate-in fade-in duration-300">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
-                รหัสนักศึกษา (Student ID)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  maxLength={10}
-                  placeholder="กรอกรหัสนักศึกษา 10 หลัก"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value.replace(/\D/g, ''))}
-                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm font-mono text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
-                  autoFocus
-                />
-                <User className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-              <p className="text-[11px] text-apple-ink-subtle">
-                กรอกรหัสนักศึกษาเพื่อเข้าสู่ระบบตรวจสอบยอดและส่งสลิปส่วนตัว
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-pill-primary w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 mt-2"
-            >
-              <span>{loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบนักศึกษา'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-        )}
-
-        {/* ==================== ADMIN LOGIN FORM ==================== */}
-        {roleTab === 'ADMIN' && (
-          <form onSubmit={handleAdminSubmit} className="space-y-4 animate-in fade-in duration-300">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
-                ชื่อผู้ใช้เหรัญญิก (Username)
-              </label>
+        {/* ==================== UNIFIED LOGIN FORM ==================== */}
+        <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-300">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
+              อีเมล / ชื่อผู้ใช้ (Email / Username)
+            </label>
+            <div className="relative">
               <input
                 type="text"
-                placeholder="ชื่อผู้ใช้"
-                value={adminUsername}
-                onChange={(e) => setAdminUsername(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
+                name="loginIdentifier"
+                id="loginIdentifier"
+                autoComplete="off"
+                placeholder="อีเมลนักศึกษา หรือ ชื่อผู้ดูแลระบบ"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
+                autoFocus
               />
+              <User className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
-                รหัสผ่านเหรัญญิก (Password)
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  placeholder="รหัสผ่านผู้ดูแลระบบ"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
-                  autoFocus
-                />
-                <Lock className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
+              รหัสผ่าน (Password)
+            </label>
+            <div className="relative">
+              <input
+                type="password"
+                name="loginPassword"
+                id="loginPassword"
+                autoComplete="new-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
+              />
+              <Lock className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-pill-primary w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all bg-apple-ink text-white hover:bg-black disabled:opacity-50 mt-2"
-            >
-              <ShieldCheck className="w-4 h-4 text-apple-emerald" />
-              <span>{loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบเหรัญญิก'}</span>
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-pill-primary w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 mt-2"
+          >
+            <span>{loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ (Sign In)'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          
+          <div className="pt-2 text-center">
+            <p className="text-[11px] text-apple-ink-subtle">
+              ยังไม่มีบัญชีนักศึกษา?{' '}
+              <Link href="/student/register" className="text-apple-primary font-semibold hover:underline">
+                ลงทะเบียนใช้งานครั้งแรก
+              </Link>
+            </p>
+          </div>
+        </form>
 
         {/* Card Footer: Security & PDPA Assurance */}
         <div className="pt-2 border-t border-apple-hairline/80 text-center space-y-1">
