@@ -117,6 +117,8 @@ export default function StudentDashboardPage() {
 
   // Handle slip submission
   const handleSubmitSlip = async (formData) => {
+    alert('กำลังเริ่มอัปโหลดไฟล์ขึ้น Storage...'); // แจ้งเตือนเพื่อให้รู้ว่าฟังก์ชันถูกเรียก
+
     if (!profile?.id) {
       showToast('กรุณาเข้าสู่ระบบก่อนทำรายการ', 'error');
       return;
