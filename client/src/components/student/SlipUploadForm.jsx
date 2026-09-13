@@ -93,6 +93,7 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    alert('ปุ่ม Submit ใน Form ทำงานแล้ว (SlipUploadForm.jsx)');
     if (!file) {
       setErrorMsg('กรุณาแนบรูปสลิปการโอนเงินก่อนส่งแบบฟอร์ม');
       return;
