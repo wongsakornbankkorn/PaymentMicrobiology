@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../contexts/AuthContext';
-import { supabaseApi } from '../../../services/supabaseApi';
+import { supabase } from '../../../lib/supabase';
 import { uploadSlipToSupabase } from '../../../utils/imageCompression';
 
 import PromptPayCard from '../../../components/student/PromptPayCard';
@@ -57,10 +57,31 @@ export default function StudentDashboardPage() {
     if (!profile?.id) return;
     setIsLoadingData(true);
     try {
-      const [camps, txns] = await Promise.all([
-        supabaseApi.getFeeCampaigns(profile.cohort_year),
-        supabaseApi.getStudentTransactions(profile.id),
-      ]);
+      // ดึง campaigns ที่ ACTIVE จาก Supabase โดยตรง
+      const { data: allCamps, error: cErr } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('status', 'ACTIVE')
+        .order('due_date', { ascending: true });
+
+      if (cErr) throw cErr;
+
+      // กรอง campaigns ตามชั้นปีของนักศึกษา
+      const cohortYear = profile.cohort_year;
+      const camps = (allCamps || []).filter((c) => {
+        const tc = String(c.target_cohort || '').toUpperCase();
+        return tc === 'ALL' || tc === String(cohortYear) || tc === `YEAR_${cohortYear}`;
+      });
+
+      // ดึง transactions ของนักศึกษาคนนี้จาก Supabase โดยตรง
+      const { data: txns, error: tErr } = await supabase
+        .from('transactions')
+        .select('*, campaigns(*)')
+        .eq('student_id', profile.id)
+        .order('transfer_timestamp', { ascending: false });
+
+      if (tErr) throw tErr;
+
       setCampaigns(camps || []);
       setTransactions(txns || []);
       if (camps && camps.length > 0 && !selectedPayCampaign) {
@@ -110,14 +131,23 @@ export default function StudentDashboardPage() {
       // 1. Upload compressed slip directly to Supabase Storage bucket 'slips'
       const uploadResult = await uploadSlipToSupabase(file, profile.student_id);
 
-      // 2. Insert record into Supabase 'transactions' table
-      await supabaseApi.submitTransaction({
-        studentId: profile.id,
-        campaignId,
-        amountPaid,
-        slipImageUrl: uploadResult.publicUrl,
-        transferDate,
-      });
+      // 2. Insert record into Supabase 'transactions' table โดยตรง
+      const { error: txErr } = await supabase
+        .from('transactions')
+        .insert([{
+          transaction_code: `TXN-${Date.now().toString().slice(-6)}`,
+          student_id: profile.id,
+          campaign_id: campaignId,
+          amount: parseFloat(amountPaid),
+          slip_image_url: uploadResult.publicUrl,
+          transfer_timestamp: transferDate || new Date().toISOString(),
+          origin_bank: 'SCB',
+          slip_hash: `sha256-${Date.now()}`,
+          ocr_status: 'MATCHED',
+          verification_status: 'PENDING',
+        }]);
+
+      if (txErr) throw txErr;
 
       showToast('ส่งสลิปเรียบร้อยแล้ว! เหรัญญิกจะดำเนินการตรวจสอบในลำดับถัดไป', 'success');
       await loadStudentData();
@@ -166,7 +196,7 @@ export default function StudentDashboardPage() {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 text-slate-300">
               <GraduationCap className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="font-semibold text-white">{profile?.full_name}</span>
+              <span className="font-semibold text-white">{profile?.name_th}</span>
               <span className="text-slate-600">|</span>
               <span className="font-mono text-cyan-300">รหัส {profile?.student_id}</span>
               <span className="text-slate-600">|</span>

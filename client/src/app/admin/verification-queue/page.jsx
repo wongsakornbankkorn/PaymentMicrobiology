@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../contexts/AuthContext';
-import { supabaseApi } from '../../../services/supabaseApi';
+import { supabase } from '../../../lib/supabase';
 import { exportLedgerToCSV } from '../../../utils/exportLedger';
 import Toast from '../../../components/common/Toast';
 
@@ -85,14 +85,76 @@ export default function AdminVerificationPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [queueData, ledgerData] = await Promise.all([
-        supabaseApi.getVerificationQueue(filterStatus),
-        supabaseApi.getStudentLedger(),
+      // ดึง transactions พร้อม join students และ campaigns
+      let queueQuery = supabase
+        .from('transactions')
+        .select('*, students(*), campaigns(*)')
+        .order('transfer_timestamp', { ascending: false });
+
+      if (filterStatus && filterStatus !== 'ALL') {
+        queueQuery = queueQuery.eq('verification_status', filterStatus);
+      }
+
+      const { data: queueData, error: qErr } = await queueQuery;
+      if (qErr) throw qErr;
+
+      // ดึงข้อมูลสำหรับ Ledger: students + campaigns + transactions
+      const [{ data: allStudents, error: sErr }, { data: allCamps, error: cErr }, { data: allTxns, error: tErr }] = await Promise.all([
+        supabase.from('students').select('*').order('student_id', { ascending: true }),
+        supabase.from('campaigns').select('*').eq('status', 'ACTIVE'),
+        supabase.from('transactions').select('*'),
       ]);
-      setTransactions(queueData || []);
+
+      if (sErr) throw sErr;
+      if (cErr) throw cErr;
+      if (tErr) throw tErr;
+
+      // คำนวณ ledger ต่อนักศึกษา
+      const ledgerData = (allStudents || []).map((student) => {
+        const studentTxns = (allTxns || []).filter((t) => t.student_id === student.id);
+        const approvedTxns = studentTxns.filter((t) => t.verification_status === 'VERIFIED');
+        const hasPending = studentTxns.some((t) => t.verification_status === 'PENDING');
+        const totalPaid = approvedTxns.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+        const applicableCamps = (allCamps || []).filter((c) => {
+          const tc = String(c.target_cohort || '').toUpperCase();
+          return tc === 'ALL' || tc === String(student.cohort_year) || tc === `YEAR_${student.cohort_year}`;
+        });
+        const totalRequired = applicableCamps.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
+
+        return {
+          id: student.id,
+          student_id: student.student_id,
+          full_name: student.name_th,
+          cohort_year: student.cohort_year,
+          totalRequired,
+          totalPaid,
+          balanceRemaining: Math.max(0, totalRequired - totalPaid),
+          hasPending,
+          transaction_count: studentTxns.length,
+        };
+      });
+
+      // แปลงข้อมูล queueData ให้อยู่ในรูปแบบที่ UI ต้องการ
+      const normalizedQueue = (queueData || []).map((txn) => ({
+        ...txn,
+        status: txn.verification_status || txn.status,
+        amount_paid: txn.amount,
+        student: txn.students ? {
+          student_id: txn.students.student_id,
+          full_name: txn.students.name_th,
+          cohort_year: txn.students.cohort_year,
+        } : null,
+        campaign: txn.campaigns ? {
+          title: txn.campaigns.title,
+          amount: txn.campaigns.amount,
+        } : null,
+      }));
+
+      setTransactions(normalizedQueue);
       setLedgerStudents(ledgerData || []);
-      if (queueData && queueData.length > 0 && !selectedTxnId) {
-        setSelectedTxnId(queueData[0].id);
+      if (normalizedQueue.length > 0 && !selectedTxnId) {
+        setSelectedTxnId(normalizedQueue[0].id);
       }
     } catch (err) {
       console.error('Admin data fetch error:', err);
@@ -129,11 +191,27 @@ export default function AdminVerificationPage() {
   const handleApprove = async (txnId) => {
     setIsProcessing(true);
     try {
-      await supabaseApi.verifyTransaction({
-        transactionId: txnId,
-        status: 'APPROVED',
-        adminId: profile?.id,
-      });
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          verification_status: 'VERIFIED',
+          reviewed_by: profile?.name || 'Admin',
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', txnId);
+
+      if (error) throw error;
+
+      // สร้าง receipt อัตโนมัติ
+      try {
+        await supabase.from('receipts').insert([{
+          receipt_number: `REC-2026-MICRO-${String(txnId).padStart(3, '0')}`,
+          transaction_id: txnId,
+          issued_at: new Date().toISOString(),
+        }]);
+      } catch (rErr) {
+        console.error('Auto-create receipt error:', rErr);
+      }
 
       showToast('อนุมัติสลิปการโอนเงินเรียบร้อยแล้ว', 'success');
       await loadData();
@@ -152,12 +230,17 @@ export default function AdminVerificationPage() {
       const reason =
         rejectionReason === 'OTHER' ? customReason : rejectionReason;
 
-      await supabaseApi.verifyTransaction({
-        transactionId: activeTxn.id,
-        status: 'REJECTED',
-        rejectReason: reason,
-        adminId: profile?.id,
-      });
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          verification_status: 'REJECTED',
+          rejection_reason: reason,
+          reviewed_by: profile?.name || 'Admin',
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', activeTxn.id);
+
+      if (error) throw error;
 
       showToast('ปฏิเสธสลิปการโอนเงินและบันทึกเหตุผลเรียบร้อย', 'info');
       setIsRejectModalOpen(false);
@@ -230,7 +313,7 @@ export default function AdminVerificationPage() {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 text-slate-300">
               <User className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{profile?.full_name || 'เหรัญญิกภาควิชา'}</span>
+              <span>{profile?.name || 'เหรัญญิกภาควิชา'}</span>
               <span className="text-emerald-400 font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-[10px]">
                 ADMIN
               </span>

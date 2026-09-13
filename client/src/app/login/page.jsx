@@ -17,19 +17,15 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, role, loading, signIn, signUp } = useAuth();
+  const { user, role, loading, signIn } = useAuth();
 
   const [roleTab, setRoleTab] = useState('STUDENT'); // 'STUDENT' | 'ADMIN'
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  // Student form fields
+  // Student form fields — ใช้แค่รหัสนักศึกษา (ค้นหาจากตาราง students โดยตรง)
   const [studentId, setStudentId] = useState('');
-  const [studentFullName, setStudentFullName] = useState('');
-  const [studentCohort, setStudentCohort] = useState('2');
-  const [studentPassword, setStudentPassword] = useState('');
 
   // Admin form fields
-  const [adminEmail, setAdminEmail] = useState('admin@psu.ac.th');
+  const [adminUsername, setAdminUsername] = useState('admin');
   const [adminPassword, setAdminPassword] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,7 +43,7 @@ export default function LoginPage() {
     }
   }, [user, role, loading, router]);
 
-  // Handle Student Login / Register
+  // Handle Student Login — ค้นหา student_id จาก Supabase
   const handleStudentSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -58,32 +54,20 @@ export default function LoginPage() {
       return;
     }
 
-    if (!studentPassword) {
-      setErrorMsg('กรุณากรอกรหัสผ่าน');
+    if (studentId.trim().length !== 10) {
+      setErrorMsg('รหัสนักศึกษาต้องมี 10 หลัก');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      if (isRegisterMode) {
-        if (!studentFullName.trim()) {
-          throw new Error('กรุณากรอกชื่อ-นามสกุล');
-        }
-        await signUp({
-          studentId: studentId.trim(),
-          fullName: studentFullName.trim(),
-          cohortYear: parseInt(studentCohort, 10),
-          password: studentPassword,
-        });
-        setSuccessMsg('ลงทะเบียนสำเร็จ! กำลังนำเข้าสู่ระบบ...');
-        setTimeout(() => router.replace('/student/dashboard'), 800);
-      } else {
-        await signIn(studentId.trim(), studentPassword);
-        router.replace('/student/dashboard');
-      }
+      // signIn จะค้นหา student_id จากตาราง students (ถ้าเป็นตัวเลข 10 หลัก)
+      await signIn(studentId.trim(), '');
+      setSuccessMsg('เข้าสู่ระบบสำเร็จ กำลังนำไปยังหน้าแดชบอร์ด...');
+      setTimeout(() => router.replace('/student/dashboard'), 500);
     } catch (err) {
-      setErrorMsg(err.message || 'การเข้าสู่ระบบล้มเหลว กรุณาตรวจสอบข้อมูลอีกครั้ง');
+      setErrorMsg(err.message || 'ไม่พบรหัสนักศึกษานี้ในระบบ กรุณาตรวจสอบอีกครั้ง');
     } finally {
       setIsSubmitting(false);
     }
@@ -94,18 +78,18 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!adminPassword) {
-      setErrorMsg('กรุณากรอกรหัสผ่านเหรัญญิก');
+    if (!adminUsername.trim()) {
+      setErrorMsg('กรุณากรอกชื่อผู้ใช้เหรัญญิก');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      await signIn(adminEmail.trim(), adminPassword);
+      await signIn(adminUsername.trim(), adminPassword);
       router.replace('/admin/verification-queue');
     } catch (err) {
-      setErrorMsg(err.message || 'รหัสผ่านหรืออีเมลเหรัญญิกไม่ถูกต้อง');
+      setErrorMsg(err.message || 'ชื่อผู้ใช้หรือรหัสผ่านเหรัญญิกไม่ถูกต้อง');
     } finally {
       setIsSubmitting(false);
     }
@@ -199,7 +183,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Student Form */}
+        {/* Student Form — ใช้แค่รหัสนักศึกษา ค้นหาจาก Supabase */}
         {roleTab === 'STUDENT' ? (
           <form onSubmit={handleStudentSubmit} className="space-y-4">
             <div>
@@ -220,59 +204,9 @@ export default function LoginPage() {
                   required
                 />
               </div>
-            </div>
-
-            {isRegisterMode && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    ชื่อ-นามสกุล
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="เช่น นายสมชาย จุลชีวะ"
-                    value={studentFullName}
-                    onChange={(e) => setStudentFullName(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    ชั้นปีที่ศึกษา (Cohort Year)
-                  </label>
-                  <select
-                    value={studentCohort}
-                    onChange={(e) => setStudentCohort(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  >
-                    <option value="1">ชั้นปีที่ 1 (Cohort 1)</option>
-                    <option value="2">ชั้นปีที่ 2 (Cohort 2)</option>
-                    <option value="3">ชั้นปีที่ 3 (Cohort 3)</option>
-                    <option value="4">ชั้นปีที่ 4 (Cohort 4)</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                รหัสผ่าน (Password)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={studentPassword}
-                  onChange={(e) => setStudentPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                  required
-                />
-              </div>
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                กรอกรหัสนักศึกษาที่ลงทะเบียนไว้ในระบบ เพื่อเข้าดูสถานะการชำระเงิน
+              </p>
             </div>
 
             <button
@@ -280,39 +214,26 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="w-full mt-2 py-3 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 disabled:opacity-50"
             >
-              <span>{isSubmitting ? 'กำลังดำเนินการ...' : (isRegisterMode ? 'สร้างบัญชีนักศึกษาใหม่' : 'เข้าสู่ระบบนักศึกษา')}</span>
+              <span>{isSubmitting ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบนักศึกษา'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegisterMode(!isRegisterMode);
-                  setErrorMsg('');
-                }}
-                className="text-xs text-cyan-400 hover:underline"
-              >
-                {isRegisterMode ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชีนักศึกษา? ลงทะเบียนที่นี่'}
-              </button>
-            </div>
           </form>
         ) : (
           /* Admin Form */
           <form onSubmit={handleAdminSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                อีเมลเหรัญญิกภาควิชา
+                ชื่อผู้ใช้เหรัญญิกภาควิชา (Username)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <input
-                  type="email"
-                  placeholder="admin@psu.ac.th"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
+                  type="text"
+                  placeholder="admin"
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                   required
                 />
@@ -333,9 +254,11 @@ export default function LoginPage() {
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-                  required
                 />
               </div>
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                ระบบจะตรวจสอบ username จากฐานข้อมูล (password verification จะเพิ่มภายหลัง)
+              </p>
             </div>
 
             <button
