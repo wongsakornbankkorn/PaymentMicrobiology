@@ -104,7 +104,6 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
     setErrorMsg('');
 
     try {
-      alert('กำลังเริ่มอัปโหลดไฟล์ขึ้น Storage...');
       
       const fileExt = file.name.split('.').pop();
       const filePath = `slip-${Date.now()}.${fileExt}`;
@@ -128,7 +127,6 @@ export default function SlipUploadForm({ campaigns, selectedCampaign, currentAmo
         .getPublicUrl(filePath);
         
       const realSlipUrl = publicUrlData.publicUrl;
-      alert('อัปโหลดไฟล์ขึ้น Storage สำเร็จ URL คือ: ' + realSlipUrl);
 
       const formData = new FormData();
       formData.append('slip', file);
