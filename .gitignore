@@ -18,3 +18,12 @@ client/.env.local
 
 # Uploads
 uploads/
+# Legacy Backend & Server
+config/
+controllers/
+middleware/
+models/
+routes/
+scripts/
+server.js
+uploads/
