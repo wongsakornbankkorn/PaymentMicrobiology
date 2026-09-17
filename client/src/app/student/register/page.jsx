@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
-import { Sparkles, User, Mail, Lock, CheckCircle2, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Sparkles, User, Lock, CheckCircle2, ArrowRight, ShieldCheck, AlertCircle, Phone, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -12,7 +12,9 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     studentId: '',
     name: '',
-    email: '',
+    nameEn: '',
+    cohortYear: '',
+    phone: '',
     password: '',
   });
 
@@ -30,9 +32,9 @@ export default function RegisterPage() {
     setErrorMsg('');
     setSuccessMsg('');
 
-    const { studentId, name, email, password } = formData;
+    const { studentId, name, nameEn, cohortYear, phone, password } = formData;
 
-    if (!studentId || !name || !email || !password) {
+    if (!studentId || !name || !nameEn || !cohortYear || !phone || !password) {
       setErrorMsg('กรุณากรอกข้อมูลให้ครบทุกช่อง');
       return;
     }
@@ -50,9 +52,12 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
+      // Create Dummy Email for Supabase Auth
+      const dummyEmail = `${studentId.trim()}@student.psu.mock`;
+
       // 1. Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: dummyEmail,
         password: password,
         options: {
           data: {
@@ -74,7 +79,10 @@ export default function RegisterPage() {
       const newStudent = {
         student_id: studentId.trim(),
         name_th: name.trim(),
-        email: email.trim(),
+        name_en: nameEn.trim(),
+        cohort_year: cohortYear.trim(),
+        phone: phone.trim(),
+        email: dummyEmail,
         auth_id: authData.user.id,
         status: 'ENROLLED',
       };
@@ -89,7 +97,14 @@ export default function RegisterPage() {
         if (dbError.code === '23505') { 
           const { error: updateError } = await supabase
             .from('students')
-            .update({ auth_id: authData.user.id, email: email.trim(), name_th: name.trim() })
+            .update({ 
+              auth_id: authData.user.id, 
+              email: dummyEmail, 
+              name_th: name.trim(), 
+              name_en: nameEn.trim(),
+              cohort_year: cohortYear.trim(),
+              phone: phone.trim()
+            })
             .eq('student_id', studentId.trim());
             
           if (updateError) {
@@ -196,7 +211,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Name */}
+            {/* Name (Thai) */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
                 ชื่อ-นามสกุล (ภาษาไทย)
@@ -215,24 +230,67 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Email */}
+            {/* Name (English) */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
-                อีเมล (Email)
+                ชื่อ-นามสกุล (ภาษาอังกฤษ)
               </label>
               <div className="relative">
                 <input
-                  type="email"
-                  name="email"
-                  id="email"
-                  autoComplete="off"
-                  value={formData.email}
+                  type="text"
+                  name="nameEn"
+                  value={formData.nameEn}
                   onChange={handleChange}
-                  placeholder="student@sci.psu.ac.th"
+                  placeholder="e.g. Somchai Jaidee"
                   disabled={isSubmitting}
                   className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
                 />
-                <Mail className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <User className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Cohort Year */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
+                  ชั้นปี
+                </label>
+                <div className="relative">
+                  <select
+                    name="cohortYear"
+                    value={formData.cohortYear}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cohortYear: e.target.value }))}
+                    disabled={isSubmitting}
+                    className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner appearance-none"
+                  >
+                    <option value="" disabled>เลือกชั้นปี...</option>
+                    <option value="1">ชั้นปีที่ 1</option>
+                    <option value="2">ชั้นปีที่ 2</option>
+                    <option value="3">ชั้นปีที่ 3</option>
+                    <option value="4">ชั้นปีที่ 4</option>
+                  </select>
+                  <Calendar className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
+                  เบอร์โทรศัพท์
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '') }))}
+                    placeholder="เช่น 0812345678"
+                    maxLength={10}
+                    disabled={isSubmitting}
+                    className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"
+                  />
+                  <Phone className="w-4 h-4 text-apple-ink-subtle absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
             </div>
 

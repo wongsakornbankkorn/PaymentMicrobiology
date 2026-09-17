@@ -23,8 +23,8 @@ export default function LoginPage() {
 
   const [roleTab, setRoleTab] = useState('STUDENT'); // 'STUDENT' | 'ADMIN'
 
-  // Student form fields (Email and Password for Supabase Auth)
-  const [studentEmail, setStudentEmail] = useState('');
+  // Student form fields (Student ID and Password for Supabase Auth)
+  const [studentId, setStudentId] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
 
   // Admin form fields
@@ -46,25 +46,25 @@ export default function LoginPage() {
     }
   }, [user, role, loading, router]);
 
-  // Handle Student Login (Email & Password)
+  // Handle Student Login (Student ID & Password)
   const handleStudentSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!studentEmail || !studentPassword) {
-      setErrorMsg('กรุณากรอกอีเมลและรหัสผ่านให้ครบถ้วน');
+    if (!studentId || !studentPassword) {
+      setErrorMsg('กรุณากรอกรหัสนักศึกษาและรหัสผ่านให้ครบถ้วน');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      await signIn(studentEmail, studentPassword);
+      await signIn(studentId, studentPassword);
       setSuccessMsg('เข้าสู่ระบบสำเร็จ กำลังนำไปยังหน้าแดชบอร์ด...');
       setTimeout(() => router.replace('/student/dashboard'), 500);
     } catch (err) {
-      setErrorMsg(err.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      setErrorMsg(err.message || 'รหัสนักศึกษาหรือรหัสผ่านไม่ถูกต้อง');
     } finally {
       setIsSubmitting(false);
     }
@@ -183,22 +183,24 @@ export default function LoginPage() {
         {/* Student Form */}
         {roleTab === 'STUDENT' ? (
           <form onSubmit={handleStudentSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                อีเมล (Email)
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+                รหัสนักศึกษา (Student ID)
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Mail className="w-4 h-4" />
-                </div>
                 <input
-                  type="email"
-                  placeholder="student@sci.psu.ac.th"
-                  value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
-                  required
+                  type="text"
+                  name="studentIdLogin"
+                  id="studentIdLogin"
+                  autoComplete="off"
+                  maxLength={10}
+                  placeholder="รหัสนักศึกษา 10 หลัก"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value.replace(/\D/g, ''))}
+                  className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-slate-900/50 border border-slate-700/50 text-sm font-mono text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all shadow-inner"
+                  autoFocus
                 />
+                <User className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 

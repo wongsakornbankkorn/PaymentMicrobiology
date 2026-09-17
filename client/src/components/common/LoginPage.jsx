@@ -94,7 +94,7 @@ export default function LoginPage({ onLoginSuccess }) {
         <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-300">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-apple-ink uppercase tracking-wider block">
-              อีเมล / ชื่อผู้ใช้ (Email / Username)
+              รหัสนักศึกษา / ชื่อผู้ใช้ (Student ID / Username)
             </label>
             <div className="relative">
               <input
@@ -102,7 +102,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 name="loginIdentifier"
                 id="loginIdentifier"
                 autoComplete="off"
-                placeholder="อีเมลนักศึกษา หรือ ชื่อผู้ดูแลระบบ"
+                placeholder="รหัสนักศึกษา 10 หลัก หรือ ชื่อผู้ใช้เหรัญญิก"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-white border border-apple-hairline text-sm text-apple-ink placeholder:text-apple-ink-subtle/50 focus:outline-none focus:ring-2 focus:ring-apple-primary/40 focus:border-apple-primary transition-all shadow-inner"

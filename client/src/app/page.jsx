@@ -98,7 +98,8 @@ export default function App() {
 
   const handleLoginSuccess = async (credentials) => {
     const { identifier, password } = credentials;
-    const isStudent = identifier.includes('@');
+    // นักศึกษาจะใช้รหัสนักศึกษา 10 หลัก (ตัวเลขล้วน)
+    const isStudent = /^\d{10}$/.test(identifier.trim());
 
     if (isStudent) {
       const result = await api.studentLogin(identifier, password);

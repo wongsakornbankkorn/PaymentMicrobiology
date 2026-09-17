@@ -102,16 +102,16 @@ export function AuthProvider({ children }) {
   }, [profile?.role]);
 
   /**
-   * Sign In: รองรับทั้ง Student (Email/Password) และ Admin (Username)
-   * @param identifier - email หรือ admin username
+   * Sign In: รองรับทั้ง Student (Student ID + Password) และ Admin (Username + Password)
+   * @param identifier - รหัสนักศึกษา (10 หลัก) หรือ admin username
    * @param password - password 
    */
   const signIn = async (identifier, password) => {
     setLoading(true);
 
     const trimmed = String(identifier).trim();
-    // ถ้ามี @ ถือว่าเป็น Email (Student)
-    const isStudent = trimmed.includes('@');
+    // ถ้ารูปแบบเป็นตัวเลข 10 หลัก ถือว่าเป็น Student
+    const isStudent = /^\d{10}$/.test(trimmed);
 
     try {
       if (isStudent) {
@@ -120,8 +120,10 @@ export function AuthProvider({ children }) {
           throw new Error('กรุณากรอกรหัสผ่าน');
         }
         
+        const dummyEmail = `${trimmed}@student.psu.mock`;
+        
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: trimmed,
+          email: dummyEmail,
           password: password,
         });
 

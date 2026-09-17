@@ -46,14 +46,15 @@ export const api = {
   // ==========================================================================
 
   /**
-   * Student Login: ใช้ Supabase Auth (อีเมล + รหัสผ่าน)
+   * Student Login: ใช้ Supabase Auth (รหัสนักศึกษา + รหัสผ่าน) ผ่าน Dummy Email
    */
-  async studentLogin(email, password) {
-    const cleanEmail = String(email).trim();
+  async studentLogin(studentId, password) {
+    const cleanId = String(studentId).trim();
+    const dummyEmail = `${cleanId}@student.psu.mock`;
 
     // 1. Sign in with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
+      email: dummyEmail,
       password: password,
     });
 
