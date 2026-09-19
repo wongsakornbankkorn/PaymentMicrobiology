@@ -280,7 +280,7 @@ export default function LoginPage() {
                 />
               </div>
               <p className="mt-1.5 text-[11px] text-slate-500">
-                ระบบจะตรวจสอบ username จากฐานข้อมูล (password verification จะเพิ่มภายหลัง)
+                ระบบตรวจสอบรหัสผ่านเหรัญญิกกับฐานข้อมูลผ่านการเข้ารหัส bcrypt
               </p>
             </div>
 

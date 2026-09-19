@@ -136,10 +136,9 @@ export default function AdminVerificationPage() {
       });
 
       // แปลงข้อมูล queueData ให้อยู่ในรูปแบบที่ UI ต้องการ
+      // ใช้ verification_status และ amount ตรงๆ ไม่สร้าง alias ที่สับสน
       const normalizedQueue = (queueData || []).map((txn) => ({
         ...txn,
-        status: txn.verification_status || txn.status,
-        amount_paid: txn.amount,
         student: txn.students ? {
           student_id: txn.students.student_id,
           full_name: txn.students.name_th,
@@ -179,7 +178,7 @@ export default function AdminVerificationPage() {
   // Active Transaction for Split-View
   const filteredTransactions = transactions.filter((t) => {
     if (filterStatus === 'ALL') return true;
-    return t.status === filterStatus;
+    return t.verification_status === filterStatus;
   });
 
   const activeTxn =
@@ -202,15 +201,25 @@ export default function AdminVerificationPage() {
 
       if (error) throw error;
 
-      // สร้าง receipt อัตโนมัติ
-      try {
-        await supabase.from('receipts').insert([{
-          receipt_number: `REC-2026-MICRO-${String(txnId).padStart(3, '0')}`,
-          transaction_id: txnId,
-          issued_at: new Date().toISOString(),
-        }]);
-      } catch (rErr) {
-        console.error('Auto-create receipt error:', rErr);
+      // สร้าง receipt อัตโนมัติ — ตรวจ error ด้วย ถ้าล้มเหลว rollback สถานะกลับ
+      const { error: receiptError } = await supabase.from('receipts').insert([{
+        receipt_number: `REC-2026-MICRO-${String(txnId).padStart(3, '0')}`,
+        transaction_id: txnId,
+        issued_at: new Date().toISOString(),
+      }]);
+
+      if (receiptError) {
+        console.error('Receipt creation failed, rolling back approval:', receiptError);
+        // Rollback: เปลี่ยนสถานะกลับเป็น PENDING
+        await supabase
+          .from('transactions')
+          .update({
+            verification_status: 'PENDING',
+            reviewed_by: null,
+            reviewed_at: null,
+          })
+          .eq('id', txnId);
+        throw new Error('ไม่สามารถสร้างใบเสร็จได้ การอนุมัติถูกยกเลิก กรุณาลองอีกครั้ง');
       }
 
       showToast('อนุมัติสลิปการโอนเงินเรียบร้อยแล้ว', 'success');
@@ -346,7 +355,7 @@ export default function AdminVerificationPage() {
               <Clock className="w-4 h-4" />
               <span>
                 คิวตรวจสอบสลิป (
-                {transactions.filter((t) => t.status === 'PENDING').length})
+                {transactions.filter((t) => t.verification_status === 'PENDING').length})
               </span>
             </button>
             <button
@@ -387,18 +396,18 @@ export default function AdminVerificationPage() {
                 }`}
               >
                 รอตรวจสอบ (
-                {transactions.filter((t) => t.status === 'PENDING').length})
+                {transactions.filter((t) => t.verification_status === 'PENDING').length})
               </button>
               <button
-                onClick={() => setFilterStatus('APPROVED')}
+                onClick={() => setFilterStatus('VERIFIED')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  filterStatus === 'APPROVED'
+                  filterStatus === 'VERIFIED'
                     ? 'bg-emerald-500 text-slate-950 font-bold'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 อนุมัติแล้ว (
-                {transactions.filter((t) => t.status === 'APPROVED').length})
+                {transactions.filter((t) => t.verification_status === 'VERIFIED').length})
               </button>
               <button
                 onClick={() => setFilterStatus('REJECTED')}
@@ -409,7 +418,7 @@ export default function AdminVerificationPage() {
                 }`}
               >
                 ปฏิเสธ (
-                {transactions.filter((t) => t.status === 'REJECTED').length})
+                {transactions.filter((t) => t.verification_status === 'REJECTED').length})
               </button>
               <button
                 onClick={() => setFilterStatus('ALL')}
@@ -462,14 +471,14 @@ export default function AdminVerificationPage() {
 
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              txn.status === 'APPROVED'
+                              txn.verification_status === 'VERIFIED'
                                 ? 'bg-emerald-500/20 text-emerald-300'
-                                : txn.status === 'REJECTED'
+                                : txn.verification_status === 'REJECTED'
                                 ? 'bg-rose-500/20 text-rose-300'
                                 : 'bg-amber-500/20 text-amber-300'
                             }`}
                           >
-                            {txn.status}
+                            {txn.verification_status}
                           </span>
                         </div>
 
@@ -478,7 +487,7 @@ export default function AdminVerificationPage() {
                             {txn.campaign?.title || 'ค่าบำรุง'}
                           </span>
                           <span className="font-bold text-white font-mono">
-                            ฿{Number(txn.amount_paid).toLocaleString()}
+                            ฿{Number(txn.amount).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -516,7 +525,7 @@ export default function AdminVerificationPage() {
                           ยอดโอนที่แจ้ง
                         </span>
                         <span className="text-2xl font-bold font-mono text-emerald-400">
-                          ฿{Number(activeTxn.amount_paid).toLocaleString()}
+                          ฿{Number(activeTxn.amount).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -617,7 +626,7 @@ export default function AdminVerificationPage() {
                     </div>
 
                     {/* Actions */}
-                    {activeTxn.status === 'PENDING' ? (
+                    {activeTxn.verification_status === 'PENDING' ? (
                       <div className="flex items-center gap-3 pt-2">
                         <button
                           onClick={() => setIsRejectModalOpen(true)}
@@ -645,7 +654,7 @@ export default function AdminVerificationPage() {
                       <div className="p-3 rounded-xl bg-slate-800 text-center text-xs text-slate-400">
                         รายการนี้ถูกบันทึกสถานะเป็น{' '}
                         <span className="font-bold text-white">
-                          {activeTxn.status}
+                          {activeTxn.verification_status}
                         </span>{' '}
                         แล้ว
                       </div>

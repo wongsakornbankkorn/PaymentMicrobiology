@@ -103,16 +103,19 @@ export default function StudentDashboardPage() {
   }, [profile?.id, loadStudentData]);
 
   // Calculate financial overview
+  // คำนวณยอดเฉพาะ campaign ที่เกี่ยวข้องกับชั้นปีเท่านั้น
+  // เพื่อไม่ให้ยอดจากกิจกรรมเก่าไปหักหนี้กิจกรรมปัจจุบัน
+  const campaignIds = new Set(campaigns.map(c => String(c.id)));
   const totalObligation = campaigns.reduce(
     (sum, c) => sum + parseFloat(c.amount || 0),
     0
   );
   const totalPaid = transactions
-    .filter((t) => t.status === 'APPROVED')
-    .reduce((sum, t) => sum + parseFloat(t.amount_paid || 0), 0);
+    .filter((t) => t.verification_status === 'VERIFIED' && campaignIds.has(String(t.campaign_id)))
+    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
   const pendingAmount = transactions
-    .filter((t) => t.status === 'PENDING')
-    .reduce((sum, t) => sum + parseFloat(t.amount_paid || 0), 0);
+    .filter((t) => t.verification_status === 'PENDING')
+    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
   const balanceRemaining = Math.max(0, totalObligation - totalPaid);
 
   // Handle slip submission
@@ -160,7 +163,25 @@ export default function StudentDashboardPage() {
 
       const realSlipUrl = publicUrlData.publicUrl;
 
-      // 2. Insert record into Supabase 'transactions' table
+      // 2. สร้าง SHA-256 hash จากเนื้อไฟล์จริง เพื่อป้องกันสลิปซ้ำ
+      const fileBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const fileHash = 'sha256-' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // 3. ตรวจสอบสลิปซ้ำก่อนสร้าง transaction
+      const { data: existingSlip } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('slip_hash', fileHash)
+        .limit(1);
+
+      if (existingSlip && existingSlip.length > 0) {
+        showToast('สลิปนี้เคยถูกส่งในระบบแล้ว ไม่สามารถใช้ซ้ำได้', 'error');
+        return;
+      }
+
+      // 4. Insert record into Supabase 'transactions' table
       const { error: txErr } = await supabase
         .from('transactions')
         .insert([{
@@ -171,8 +192,9 @@ export default function StudentDashboardPage() {
           slip_image_url: realSlipUrl,
           transfer_timestamp: transferDate || new Date().toISOString(),
           origin_bank: originBank || 'SCB',
-          slip_hash: `sha256-${Date.now()}`,
-          ocr_status: 'MATCHED',
+          slip_hash: fileHash,
+          // ยังไม่ได้ตรวจ OCR จริง — เริ่มต้นเป็น PENDING แทน MATCHED
+          ocr_status: 'PENDING',
           verification_status: 'PENDING',
           note: note || null,
         }]);
@@ -308,7 +330,7 @@ export default function StudentDashboardPage() {
                   ฿{totalPaid.toLocaleString()}
                 </p>
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  {transactions.filter((t) => t.status === 'APPROVED').length}{' '}
+                  {transactions.filter((t) => t.verification_status === 'VERIFIED').length}{' '}
                   รายการได้รับการยืนยัน
                 </span>
               </div>
@@ -321,7 +343,7 @@ export default function StudentDashboardPage() {
                   ฿{pendingAmount.toLocaleString()}
                 </p>
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  {transactions.filter((t) => t.status === 'PENDING').length}{' '}
+                  {transactions.filter((t) => t.verification_status === 'PENDING').length}{' '}
                   รายการในคิว
                 </span>
               </div>
@@ -346,15 +368,18 @@ export default function StudentDashboardPage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {campaigns.map((camp) => {
-                  const isPaid = transactions.some(
+                  const campaignPaid = transactions
+                    .filter(
+                      (t) =>
+                        String(t.campaign_id) === String(camp.id) &&
+                        t.verification_status === 'VERIFIED'
+                    )
+                    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+                  const isPaid = campaignPaid >= parseFloat(camp.amount || 0);
+                  const isPending = !isPaid && transactions.some(
                     (t) =>
                       String(t.campaign_id) === String(camp.id) &&
-                      t.status === 'APPROVED'
-                  );
-                  const isPending = transactions.some(
-                    (t) =>
-                      String(t.campaign_id) === String(camp.id) &&
-                      t.status === 'PENDING'
+                      t.verification_status === 'PENDING'
                   );
 
                   return (

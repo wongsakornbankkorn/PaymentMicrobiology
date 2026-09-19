@@ -18,8 +18,10 @@ export const supabase = createClient(
   supabaseAnonKey || '',
   {
     auth: {
-      persistSession: false,   // ไม่ใช้ Supabase Auth — จัดการ session เองผ่าน localStorage
-      autoRefreshToken: false,
+      // เปิดเก็บ session เพื่อให้นักศึกษาไม่ต้อง login ใหม่ทุกครั้งที่ refresh หน้า
+      // Supabase Auth ใช้สำหรับ student login จริง — ต้องเก็บ session ข้ามการ refresh
+      persistSession: true,
+      autoRefreshToken: true,
     },
   }
 );

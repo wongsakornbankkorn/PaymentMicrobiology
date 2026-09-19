@@ -119,27 +119,32 @@ export const api = {
   },
 
   /**
-   * Admin Login: ค้นหา username จากตาราง admins
-   * NOTE: password_hash (bcrypt) ไม่สามารถ verify ฝั่ง client ได้
-   *       → จะทำ password verification ฝั่ง backend ภายหลัง
+   * Admin Login: เรียก Backend API ที่ตรวจ bcrypt password
+   * ไม่ query ตาราง admins จาก client โดยตรง เพราะไม่สามารถ verify bcrypt hash ฝั่ง client ได้
    */
   async adminLogin(password, username = 'admin') {
-    const { data, error } = await supabase
-      .from('admins')
-      .select('id, username, name, role')
-      .eq('username', username)
-      .single();
-
-    if (error || !data) {
-      throw new Error('ไม่พบชื่อผู้ใช้นี้ในระบบ กรุณาตรวจสอบอีกครั้ง');
+    if (!password) {
+      throw new Error('กรุณากรอกรหัสผ่านเหรัญญิก');
     }
 
-    // TODO: ส่ง password ไป verify ที่ backend (bcrypt compare) ภายหลัง
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const response = await fetch(`${backendUrl}/api/auth/admin-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านเหรัญญิกไม่ถูกต้อง');
+    }
+
     const adminUser = {
-      id: data.id,
-      username: data.username,
-      name: data.name,
-      role: data.role || 'ADMIN',
+      id: result.admin.id,
+      username: result.admin.username,
+      name: result.admin.name,
+      role: result.admin.role || 'ADMIN',
     };
 
     setStorage('dept_admin_auth', {
@@ -440,8 +445,11 @@ export const api = {
       transfer_timestamp: formData.get('transfer_timestamp') || new Date().toISOString(),
       origin_bank: formData.get('origin_bank') || 'SCB',
       slip_image_url: formData.get('preview_url') || null,
-      slip_hash: `sha256-${Date.now()}`,
-      ocr_status: 'MATCHED',
+      // slip_hash ควรถูกสร้างจากเนื้อไฟล์จริง (SHA-256) โดย caller
+      // ถ้าไม่มีส่งมาให้ใช้ timestamp เป็น fallback (แต่ไม่ควรเกิดขึ้น)
+      slip_hash: formData.get('slip_hash') || `sha256-fallback-${Date.now()}`,
+      // ยังไม่ได้ตรวจ OCR จริง — เริ่มต้นเป็น PENDING แทน MATCHED
+      ocr_status: 'PENDING',
       verification_status: 'PENDING',
       rejection_reason: null,
       note: formData.get('note') || null,
@@ -485,19 +493,29 @@ export const api = {
     }
 
     // ถ้า APPROVE → สร้าง Receipt ในตาราง receipts
+    // ตรวจ error ของ receipt ด้วย — ถ้าล้มเหลว rollback สถานะกลับเป็น PENDING
     if (action === 'APPROVE' && data) {
-      try {
+      const { error: receiptError } = await supabase
+        .from('receipts')
+        .insert([{
+          receipt_number: `REC-2026-MICRO-${String(data.id).padStart(3, '0')}`,
+          transaction_id: data.id,
+          issued_at: new Date().toISOString(),
+          receipt_url: null,
+        }]);
+
+      if (receiptError) {
+        console.error('Receipt creation failed, rolling back approval:', receiptError);
+        // Rollback: เปลี่ยนสถานะกลับเป็น PENDING เพื่อไม่ให้เกิดสถานะอนุมัติแล้วแต่ไม่มีใบเสร็จ
         await supabase
-          .from('receipts')
-          .insert([{
-            receipt_number: `REC-2026-MICRO-${String(data.id).padStart(3, '0')}`,
-            transaction_id: data.id,
-            issued_at: new Date().toISOString(),
-            receipt_url: null,
-          }]);
-      } catch (receiptErr) {
-        // ไม่ block ถ้าสร้าง receipt ไม่สำเร็จ
-        console.error('Auto-create receipt error:', receiptErr);
+          .from('transactions')
+          .update({
+            verification_status: 'PENDING',
+            reviewed_by: null,
+            reviewed_at: null,
+          })
+          .eq('id', id);
+        throw new Error('ไม่สามารถสร้างใบเสร็จได้ การอนุมัติถูกยกเลิก กรุณาลองอีกครั้ง');
       }
     }
 
@@ -591,24 +609,30 @@ export const api = {
           };
         });
 
-        const totalPaid = campaignStatuses
-          .filter((cs) => cs.status === 'VERIFIED')
-          .reduce((s, c) => s + c.amount, 0);
-
-        // คำนวณยอดค้างจากกิจกรรมที่เกี่ยวข้องกับชั้นปี
+        // คิดจากยอดที่จ่ายจริงใน transaction ไม่ใช่ยอดเต็ม campaign
+        // เพื่อกรณีจ่ายบางส่วน (100 จาก 500) จะไม่ขึ้นว่าจ่ายครบ
         const applicableCampaigns = (campaigns || []).filter((c) => {
           const tc = String(c.target_cohort || '').toUpperCase();
           return tc === 'ALL' || tc === String(student.cohort_year) || tc === `YEAR_${student.cohort_year}`;
         });
+        const applicableCampIds = new Set(applicableCampaigns.map(c => c.id));
+
+        const totalPaid = studentTxns
+          .filter((t) => t.verification_status === 'VERIFIED' && applicableCampIds.has(t.campaign_id))
+          .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+
         const totalDue = applicableCampaigns.reduce((s, c) => s + parseFloat(c.amount || 0), 0);
         const balanceRemaining = Math.max(0, totalDue - totalPaid);
+
+        // ตรวจว่าจ่ายครบจริง โดยดูยอดรวมที่จ่ายจริง ≥ ยอดที่ต้องชำระ
+        const isAllPaid = applicableCampaigns.length > 0 && totalPaid >= totalDue;
 
         return {
           ...student,
           totalPaid,
           totalDue,
           balanceRemaining,
-          isAllPaid: applicableCampaigns.length > 0 && campaignStatuses.every((cs) => cs.status === 'VERIFIED'),
+          isAllPaid,
           hasPending: campaignStatuses.some((cs) => cs.status === 'PENDING'),
           campaignStatuses,
         };

@@ -24,11 +24,16 @@ export function AuthProvider({ children }) {
 
     async function initAuth() {
       try {
-        // 1. Check Admin Session (Legacy LocalStorage)
+        // 1. Check Admin Session (LocalStorage with TTL)
         const adminAuth = localStorage.getItem('dept_admin_auth');
         if (adminAuth) {
           const parsed = JSON.parse(adminAuth);
-          if (parsed.authenticated && parsed.admin) {
+          // ตรวจว่า session ยังไม่หมดอายุ (8 ชั่วโมง) เพื่อไม่ให้ session เก่าให้สิทธิ์ได้ไม่จำกัด
+          const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+          const loginTime = parsed.loginAt ? new Date(parsed.loginAt).getTime() : 0;
+          const isExpired = Date.now() - loginTime > SESSION_TTL_MS;
+
+          if (parsed.authenticated && parsed.admin && !isExpired) {
             if (mounted) {
               setUser({ id: parsed.admin.id, role: 'ADMIN' });
               setProfile({
@@ -38,6 +43,9 @@ export function AuthProvider({ children }) {
               setLoading(false);
             }
             return;
+          } else if (isExpired) {
+            // Session หมดอายุ — ลบออก
+            localStorage.removeItem('dept_admin_auth');
           }
         }
 
@@ -155,18 +163,27 @@ export function AuthProvider({ children }) {
         return { user: studentUser, profile: studentProfile };
 
       } else {
-        // === Admin Login: ค้นหาจากตาราง admins แบบเดิม ===
-        const { data, error } = await supabase
-          .from('admins')
-          .select('id, username, name, role')
-          .eq('username', trimmed)
-          .single();
-
-        if (error || !data) {
-          throw new Error('ไม่พบชื่อผู้ใช้นี้ในระบบ กรุณาตรวจสอบอีกครั้ง');
+        // === Admin Login: เรียก Backend API ที่ตรวจ bcrypt password ===
+        if (!password) {
+          throw new Error('กรุณากรอกรหัสผ่านเหรัญญิก');
         }
 
-        // TODO: ส่ง password ไป verify ที่ backend (bcrypt compare) ภายหลัง
+        // เรียก Backend API ที่มี bcrypt compare — ไม่ query ฐานข้อมูลจาก client โดยตรง
+        // เพื่อป้องกันไม่ให้ใครเข้าสู่ระบบได้โดยรู้แค่ username
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${backendUrl}/api/auth/admin-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: trimmed, password }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านเหรัญญิกไม่ถูกต้อง');
+        }
+
+        const data = result.admin;
         const adminProfile = {
           id: data.id,
           username: data.username,
