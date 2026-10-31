@@ -1,7 +1,3 @@
-.env
-.env*.local
-.next/
-node_modules
 # Dependencies
 node_modules/
 client/node_modules/
@@ -10,20 +6,13 @@ client/node_modules/
 .next/
 client/.next/
 
-# Environment Variables
+# Environment Variables (Security: ห้ามเก็บ secrets ใน git เด็ดขาด)
 .env
 .env.local
+.env*.local
 client/.env
 client/.env.local
 
-# Uploads
+# Uploads (ไฟล์ที่ผู้ใช้อัปโหลด ไม่ควรเก็บใน git)
 uploads/
-# Legacy Backend & Server
-config/
-controllers/
-middleware/
-models/
-routes/
-scripts/
-server.js
-uploads/
+
