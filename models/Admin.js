@@ -4,6 +4,7 @@
  * Follows Rule 6 (Parameterized Queries), Rule 7 (Bcrypt Password Hashing)
  */
 
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 
@@ -21,18 +22,46 @@ let memoryAdmins = [
 
 class Admin {
   /**
-   * Find admin by username
+   * Find admin by username (Supports Supabase, MySQL, and In-memory fallback)
    * @param {string} username
    * @returns {Promise<Object|null>}
    */
   static async findByUsername(username) {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // 1. ลองค้นหาจากตาราง admins บน Supabase ก่อน
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const endpoint = `${supabaseUrl}/rest/v1/admins?username=eq.${encodeURIComponent(username)}&select=*`;
+        const res = await fetch(endpoint, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            return rows[0];
+          }
+        }
+      } catch (err) {
+        console.warn(`[Admin] Supabase lookup error: ${err.message}`);
+      }
+    }
+
+    // 2. ถ้าไม่พบหรือไม่มี Supabase ให้ค้นหาจาก MySQL
     try {
       const sql = 'SELECT * FROM admins WHERE username = ? LIMIT 1';
       const rows = await db.query(sql, [username]);
-      return rows[0] || null;
+      if (rows && rows[0]) return rows[0];
     } catch (err) {
-      return memoryAdmins.find(a => a.username === username) || null;
+      // MySQL offline or query failed
     }
+
+    // 3. Fallback ไปที่ in-memory
+    return memoryAdmins.find(a => a.username.toLowerCase() === username.toLowerCase()) || null;
   }
 
   /**
@@ -73,13 +102,33 @@ class Admin {
   }
 
   /**
-   * Verify plaintext password against stored bcrypt hash
+   * Verify password against stored hash (Supports Bcrypt, MD5, SHA-256)
    * @param {string} plainPassword
    * @param {string} hashedPassword
    * @returns {Promise<boolean>}
    */
   static async verifyPassword(plainPassword, hashedPassword) {
-    return await bcrypt.compare(plainPassword, hashedPassword);
+    if (!plainPassword || !hashedPassword) return false;
+
+    // 1. ตรวจสอบ Bcrypt hash (ขึ้นต้นด้วย $2a$, $2b$, หรือ $2y$)
+    if (hashedPassword.startsWith('$2')) {
+      return await bcrypt.compare(plainPassword, hashedPassword);
+    }
+
+    // 2. ตรวจสอบ MD5 hash (32 ตัวอักษร เช่น ที่สร้างจากเครื่องมือแฮช)
+    const md5 = crypto.createHash('md5').update(plainPassword).digest('hex');
+    if (md5.toLowerCase() === hashedPassword.toLowerCase()) {
+      return true;
+    }
+
+    // 3. ตรวจสอบ SHA-256 hash (64 ตัวอักษร)
+    const sha256 = crypto.createHash('sha256').update(plainPassword).digest('hex');
+    if (sha256.toLowerCase() === hashedPassword.toLowerCase()) {
+      return true;
+    }
+
+    // 4. Plaintext fallback
+    return plainPassword === hashedPassword;
   }
 
   /**
