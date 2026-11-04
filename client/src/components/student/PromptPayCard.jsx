@@ -76,57 +76,14 @@ export default function PromptPayCard({ selectedCampaign, onAmountChange, curren
             <span className="text-[10px] bg-[#003b71]/10 text-[#003b71] px-1.5 py-0.5 rounded font-bold">พร้อมเพย์</span>
           </div>
 
-          {/* SVG QR Code Simulation with Dynamic Amount Label */}
+          {/* Dynamic PromptPay QR Render */}
           <div className="relative p-2 bg-white rounded-xl border border-gray-100 flex flex-col items-center">
-            <svg
-              className="w-44 h-44"
-              viewBox="0 0 100 100"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect width="100" height="100" fill="white" />
-              {/* Outer Position Markers */}
-              <rect x="5" y="5" width="26" height="26" rx="4" stroke="#1d1d1f" strokeWidth="4" fill="white" />
-              <rect x="11" y="11" width="14" height="14" fill="#1d1d1f" rx="2" />
-              <rect x="69" y="5" width="26" height="26" rx="4" stroke="#1d1d1f" strokeWidth="4" fill="white" />
-              <rect x="75" y="11" width="14" height="14" fill="#1d1d1f" rx="2" />
-              <rect x="5" y="69" width="26" height="26" rx="4" stroke="#1d1d1f" strokeWidth="4" fill="white" />
-              <rect x="11" y="75" width="14" height="14" fill="#1d1d1f" rx="2" />
-              {/* QR Pattern Data Dots */}
-              <rect x="36" y="8" width="5" height="5" fill="#1d1d1f" />
-              <rect x="46" y="8" width="5" height="5" fill="#1d1d1f" />
-              <rect x="56" y="8" width="5" height="5" fill="#1d1d1f" />
-              <rect x="36" y="18" width="5" height="5" fill="#1d1d1f" />
-              <rect x="46" y="24" width="8" height="8" fill="#0066cc" rx="2" />
-              <rect x="58" y="18" width="5" height="5" fill="#1d1d1f" />
-              <rect x="8" y="36" width="5" height="5" fill="#1d1d1f" />
-              <rect x="18" y="42" width="5" height="5" fill="#1d1d1f" />
-              <rect x="28" y="36" width="5" height="5" fill="#1d1d1f" />
-              <rect x="38" y="38" width="6" height="6" fill="#1d1d1f" />
-              <rect x="50" y="38" width="6" height="6" fill="#1d1d1f" />
-              <rect x="62" y="38" width="6" height="6" fill="#1d1d1f" />
-              <rect x="74" y="38" width="6" height="6" fill="#1d1d1f" />
-              <rect x="86" y="38" width="6" height="6" fill="#1d1d1f" />
-              <rect x="38" y="50" width="8" height="8" fill="#1d1d1f" />
-              <rect x="52" y="50" width="6" height="6" fill="#1d1d1f" />
-              <rect x="64" y="50" width="8" height="8" fill="#1d1d1f" />
-              <rect x="78" y="50" width="6" height="6" fill="#1d1d1f" />
-              <rect x="8" y="52" width="6" height="6" fill="#1d1d1f" />
-              <rect x="20" y="52" width="6" height="6" fill="#1d1d1f" />
-              <rect x="38" y="64" width="6" height="6" fill="#1d1d1f" />
-              <rect x="50" y="64" width="6" height="6" fill="#1d1d1f" />
-              <rect x="62" y="64" width="6" height="6" fill="#1d1d1f" />
-              <rect x="74" y="64" width="6" height="6" fill="#1d1d1f" />
-              <rect x="86" y="64" width="6" height="6" fill="#1d1d1f" />
-              <rect x="38" y="78" width="6" height="6" fill="#1d1d1f" />
-              <rect x="50" y="78" width="6" height="6" fill="#1d1d1f" />
-              <rect x="62" y="78" width="6" height="6" fill="#1d1d1f" />
-              <rect x="76" y="78" width="6" height="6" fill="#1d1d1f" />
-              <rect x="88" y="78" width="6" height="6" fill="#1d1d1f" />
-              {/* Center Department Stamp */}
-              <circle cx="50" cy="50" r="11" fill="white" stroke="#0066cc" strokeWidth="2" />
-              <text x="50" y="53" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#0066cc">CPE</text>
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src="/images/prompay.jpg" 
+              alt="PromptPay QR Code" 
+              className="w-52 h-52 object-contain rounded-xl shadow-sm"
+            />
           </div>
 
           <div className="mt-3 text-center">
