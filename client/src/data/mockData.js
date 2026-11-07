@@ -11,7 +11,7 @@ export const DEPARTMENT_INFO = {
   university: 'มหาวิทยาลัยสงขลานครินทร์',
   account_name: 'กองทุนสาขาวิชาจุลชีววิทยา ม.อ. (Microbiology Department Fund)',
   bank_name: 'ธนาคารไทยพาณิชย์ (SCB)',
-  account_no: '045-8921-344',
-  promptpay_id: '0458921344',
+  account_no: '777777777777',
+  promptpay_id: '0628105617',
   sla_notice: 'ตรวจสอบสลิปภายใน 24 ชม. พร้อมระบบตรวจจับสลิปซ้ำอัตโนมัติ'
 };
